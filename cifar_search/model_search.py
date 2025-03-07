@@ -93,12 +93,7 @@ class MixedOp(nn.Module):
     def __init__(self, C, stride=1, is_first_stage=False, is_attention=False):
         super(MixedOp, self).__init__()
         self._ops = nn.ModuleList()
-        if is_attention:
-            all_ops = PRIMITIVES_ATT
-        elif is_first_stage:
-            all_ops = PRIMITIVES_FIRST
-        else:
-            all_ops = PRIMITIVES
+        all_ops = PRIMITIVES
         for primitive in all_ops:
             try:
                 if 'sep_conv' in primitive:
@@ -1342,8 +1337,6 @@ class Network(nn.Module):
 
     def _initialize_alphas(self):
         edge_num = sum(1 for i in range(self._steps) for _ in range(2 + i))
-        # numix_ops_att = len(PRIMITIVES_ATT)
-        numix_ops_first = len(PRIMITIVES_FIRST)
         numix_ops = len(PRIMITIVES)
         self._active_kernel_id = []
         self._kernel_num = []
@@ -1522,11 +1515,7 @@ class Network(nn.Module):
 
         gene_list = []
         for i in range(self._layers):
-            att_ops = PRIMITIVES_ATT
-            if i <= self.stage1_end:
-                all_ops = PRIMITIVES_FIRST
-            else:
-                all_ops = PRIMITIVES
+            all_ops = PRIMITIVES
             # gene_list.append(_parse(F.sigmoid(self._arch_parameters[i][0]).data.cpu().numpy(),
             #                         F.sigmoid(self._arch_parameters[i][1]).data.cpu().numpy(), all_ops, att_ops))
             # logging.info("layer: "+str(i))
