@@ -91,7 +91,7 @@ parser.add_argument('--kernel_epoch_num', type=int, default=10, help='initial ep
 parser.add_argument('--weight_epoch_num', type=int, default=15, help='initial epoch num')
 parser.add_argument('--stop_epoch_num', type=int, default=3, help='stop epoch num')
 parser.add_argument('--regrow_thre', type=int, default=50, help='regrow threshold')
-parser.add_argument('--regrow_ratio', type=int, default=0.2, help='regrow ratio')
+parser.add_argument('--regrow_ratio', type=float, default=0.2, help='regrow ratio')
 
 args, unparsed = parser.parse_known_args()
 args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
