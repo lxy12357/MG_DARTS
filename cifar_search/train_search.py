@@ -1,32 +1,22 @@
-import gc
 import os
 import sys
 import time
 import glob
 
 import numpy as np
-import torch
-from torch.nn.utils import prune
 
 # os.environ['CUDA_VISIBLE_DEVICES'] = '3'
 
 import utils
-import logging
 import argparse
-import torch.nn as nn
 import torch.utils
-import torch.nn.functional as F
 import torchvision.datasets as dset
 import torch.backends.cudnn as cudnn
 
-from torch.autograd import Variable
 from model_search import Network
 from operations import *
-import random
 
 from genotypes import *
-
-from prune import Unstructured, global_unstructured, unstructured
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='../data',
@@ -110,100 +100,15 @@ def prune_op(model, args, eta_max, pruning_n0, stage_index=0,step=False,max=0):
     EPS = 1e-8
     pruned_ops = 0
     for x in range(pruning_n0):
-        pruning_cell = 0
-        pruning_edge = 0
-        pruning_op = 0
-        pruning_w = MAX
-        pruning_w_op = MAX
         start = 0
         end = args.layers
         if stage_index==1:
             end = model.stage1_end+1
         elif stage_index==2:
-            # start = model.stage1_end+1
             end = model.stage2_end+1
         elif stage_index==3:
-            # start = model.stage2_end + 1
             end = args.layers
-        # elif stage_index==4:
-        #     start = model.stage3_end + 1
-        #     end = args.layers
-        # for cell_id in range(start,end):
-        #     # cell_weights1 = torch.sigmoid(model.arch_parameters()[cell_id][0])
-        #     # edge_id = 0
-        #     # while edge_id<2:
-        #     #     edge_weights = cell_weights1[edge_id]
-        #     #     weight_sum = 0
-        #     #     if edge_id == 0:
-        #     #         weight_sum = cell_weights1[0:2].sum()
-        #     #     elif edge_id == 1:
-        #     #         weight_sum = cell_weights1[2:4].sum()
-        #     #     op_id = 0
-        #     #     for w_op in edge_weights:
-        #     #         w_normalized = w_op / weight_sum
-        #     #         if w_normalized > args.eta_min:
-        #     #             if w_normalized < pruning_w:
-        #     #                 pruning_cell = cell_id
-        #     #                 pruning_edge = edge_id-2
-        #     #                 pruning_op = op_id
-        #     #                 pruning_w = w_normalized
-        #     #                 pruning_w_op = w_op
-        #     #         elif EPS < w_normalized <= args.eta_min:
-        #     #             pruned_ops += 1
-        #     #             logging.info('Pruning (cell, edge, op) = (%d, %d, %d): at weight %e raw_weight %e', cell_id, edge_id-2, op_id,
-        #     #                          w_normalized, w_op)
-        #     #             model._arch_parameters[cell_id][0].data[edge_id][op_id] -= MAX
-        #     #             weight_sum -= w_op
-        #     #         op_id += 1
-        #     #     edge_id += 1
-        #     # cell_weights2 = torch.sigmoid(model.arch_parameters()[cell_id][1])
-        #     cell_weights2 = torch.sigmoid(model.arch_parameters()[cell_id])
-        #     edge_id = 0
-        #     while edge_id < 14:
-        #         edge_weights = cell_weights2[edge_id]
-        #         # weight_sum = 0
-        #         if edge_id == 0:
-        #         # if edge_id < 2:
-        #             weight_sum = cell_weights2[0:2].sum()
-        #         elif edge_id == 2:
-        #         # elif edge_id < 5:
-        #             weight_sum = cell_weights2[2:5].sum()
-        #         elif edge_id == 5:
-        #         # elif edge_id < 9:
-        #             weight_sum = cell_weights2[5:9].sum()
-        #         elif edge_id == 9:
-        #         # else:
-        #             weight_sum = cell_weights2[9:14].sum()
-        #         op_id = 0
-        #         for w_op in edge_weights:
-        #             w_normalized = w_op / weight_sum
-        #             # if cell_id==0:
-        #             #     logging.info(w_op)
-        #             #     logging.info(w_normalized)
-        #             if w_normalized > args.eta_min:
-        #                 if w_normalized < pruning_w:
-        #                     pruning_cell = cell_id
-        #                     pruning_edge = edge_id
-        #                     pruning_op = op_id
-        #                     pruning_w = w_normalized
-        #                     pruning_w_op = w_op
-        #             # elif EPS < w_normalized <= args.eta_min and w_op <= args.eta_max_raw:
-        #             elif model._masks[cell_id].data[edge_id][op_id]==1 and w_normalized <= args.eta_min and w_op <= args.eta_max_raw:
-        #                 pruned_ops += 1
-        #                 # logging.info('************Pruning (cell, edge, op) = (%d, %d, %d): at weight %e raw_weight %e*************', cell_id,
-        #                 #              edge_id, op_id,
-        #                 #              w_normalized, w_op)
-        #                 # logging.info('sum_weight %e',weight_sum)
-        #                 logging.info('Pruning (cell, edge, op) = (%d, %d, %d): at weight %e raw_weight %e', cell_id, edge_id, op_id,
-        #                              w_normalized,w_op)
-        #                 # model._arch_parameters[cell_id][1].data[edge_id][op_id] -= MAX
-        #                 model._arch_parameters[cell_id].data[edge_id][op_id] -= MAX
-        #                 model._masks[cell_id].data[edge_id][op_id] = 0
-        #                 weight_sum -= w_op
-        #             op_id += 1
-        #         edge_id += 1
         for i in range(start,end):
-            # logging.info(torch.Tensor(model._masks[i])==0)
             indices = (torch.Tensor(model._masks[i])==0).nonzero()
             cell_weights2 = torch.sigmoid(model.arch_parameters()[i])
             if i == 0:
@@ -267,90 +172,6 @@ def main():
                     args.mu)
     model = model.cuda()
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
-
-    # utils.save(model, os.path.join(args.save, 'weights_init.pt'))
-
-    # logging.info(model.arch_parameters()[0].dtype)
-
-    # torch.save(model._arch_parameters.to(torch.device('cpu')), os.path.join(args.save, 'arch_param.pth'))
-    # model._arch_parameters = torch.load(os.path.join(args.save, 'arch_param.pth'))
-
-    # stage1_bn = ()
-    # stage1_weight = ()
-    # for i in range(model.stage1_end + 1):
-    #     for j in range(len(model.cells[i]._ops)):
-    #         for k in range(len(model.cells[i]._ops[j]._ops)):
-    #             if isinstance(model.cells[i]._ops[j]._ops[k], SepConv):
-    #                 stage1_bn = stage1_bn + ((model.cells[i]._ops[j]._ops[k].op[3], 'weight',model._thresholds[i][j][k]),
-    #                                          (model.cells[i]._ops[j]._ops[k].op[7], 'weight',model._thresholds[i][j][k]),)
-    #                 stage1_weight = stage1_weight + (
-    #                     (model.cells[i]._ops[j]._ops[k].op[1], 'weight',model._thresholds[i][j][k]),
-    #                     (model.cells[i]._ops[j]._ops[k].op[2], 'weight',model._thresholds[i][j][k]),
-    #                     (model.cells[i]._ops[j]._ops[k].op[5], 'weight',model._thresholds[i][j][k]),
-    #                     (model.cells[i]._ops[j]._ops[k].op[6], 'weight',model._thresholds[i][j][k]),)
-    #             elif isinstance(model.cells[i]._ops[j]._ops[k], DilConv):
-    #                 stage1_bn = stage1_bn + ((model.cells[i]._ops[j]._ops[k].op[3], 'weight',model._thresholds[i][j][k]),)
-    #                 stage1_weight = stage1_weight + (
-    #                     (model.cells[i]._ops[j]._ops[k].op[1], 'weight',model._thresholds[i][j][k]),
-    #                     (model.cells[i]._ops[j]._ops[k].op[2], 'weight',model._thresholds[i][j][k]),)
-    # # global_unstructured(
-    # #     stage1_bn,
-    # #     pruning_method=Unstructured,
-    # #     amount=0,
-    # #     mode=0
-    # # )
-    # # global_unstructured(
-    # #     stage1_weight,
-    # #     pruning_method=Unstructured,
-    # #     amount=0,
-    # #     mode=0
-    # # )
-    # for item in stage1_bn:
-    #     unstructured(item[0], item[1], amount=0, mode=0)
-    # for item in stage1_weight:
-    #     unstructured(item[0], item[1], amount=0, mode=0)
-
-    # model._arch_parameters = np.load(
-    #     os.path.join("/root/autodl-tmp/search-EXP-20230904-122803", 'arch_param3_26.npy'), allow_pickle=True)
-    # model._kernel_parameters = np.load(
-    #     os.path.join("/root/autodl-tmp/search-EXP-20230904-122803", 'kernel_param3_26.npy'), allow_pickle=True)
-    # model._masks = np.load(
-    #     os.path.join("/root/autodl-tmp/search-EXP-20230904-122803", 'mask3_26.npy'), allow_pickle=True)
-    # model._masks_k = np.load(
-    #     os.path.join("/root/autodl-tmp/search-EXP-20230904-122803", 'mask_k3_26.npy'), allow_pickle=True)
-    # model._masks_w = np.load(
-    #     os.path.join("/root/autodl-tmp/search-EXP-20230904-122803", 'mask_w3_26.npy'), allow_pickle=True)
-    # model._thresholds = np.load(
-    #     os.path.join("/root/autodl-tmp/search-EXP-20230904-122803", 'threshold3_26.npy'), allow_pickle=True)
-    # model.update_arch()
-    # # # model._initialize_masks()
-
-    # model.update_kernel_num(3)
-    # model.prune_kernel_update(3)
-    # # model.prune_kernel(3)
-    # model = model.cuda()
-
-    # utils.load(model, os.path.join("/root/autodl-tmp/search-EXP-20230904-122803", 'weights3_26.pt'))
-
-
-    # for i in range(model._layers):
-    #     for j in range(len(model.cells[0]._ops)):
-    #         for k in range(len(model.cells[0]._ops[j]._ops)):
-    #             if isinstance(model.cells[0]._ops[j]._ops[k], FactorizedReduce):
-    #                 if model._masks_k[i][j+1][k]==[]:
-    #                     model._masks_k[i][j + 1][k].append(torch.ones(model.cells[i]._ops[j]._ops[k].c_out).cuda())
-    #                 if model._kernel_parameters[i][j+1][k]==[]:
-    #                     model._kernel_parameters[i][j + 1][k].append(Variable(torch.zeros(model.cells[i]._ops[j]._ops[k].c_out).cuda(),
-    #                                  requires_grad=True))
-
-    # /ubda/home/21041193r/NAS/
-    # /ubda/home/16904288r/liuxiaoyun/
-    # model._arch_parameters = np.load(
-    #     os.path.join("/ubda/home/21041193r/NAS/search-EXP-20280925-005616", 'arch_param1.py'), allow_pickle=True)
-    # model._initialize_masks()
-    # model._reinitialize_alphas()
-    # utils.load(model, os.path.join('/ubda/home/21041193r/NAS/search-EXP-20281017-021733', 'weights_init.pt'))
-    # utils.load(model, os.path.join('/ubda/home/16904288r/liuxiaoyun/search-EXP-20281128-170135', 'weights_init.pt'))
 
     arch_para = []
     stage1_arch_para = []
@@ -656,25 +477,17 @@ def main():
             pre_end = model.stage2_end + 1
             end = model._layers
 
-        model._reinitialize_threshold()
-
         current_flops = model.current_flops(stage_index)
         logging.info('stage init model flops %e', current_flops)
         min_flops.append(current_flops*min_flops_ratio[index])
 
-        epoch = 0
         flops_lambda = 0
         flops_lambda_delta = args.lambda0
         finished = False
         t = 0
         add_sparsity = False
         eta_max = args.eta_max
-        best_acc = 0
-        stop_epoch = 0
-        can_prune = True
         prune_op_sum = 0
-        prune_kernel_sum = 0
-        prune_weight_sum = 0
         initial_train_epoch = args.initial_epoch_num_stage
         start = 0
         for epoch in range(start, initial_train_epoch):
@@ -690,16 +503,13 @@ def main():
             logging.info('train_obj_acc %e train_obj_flops %e', train_obj_acc, train_obj_flops)
             epoch_duration = time.time() - epoch_start
             logging.info('epoch time: %ds.', epoch_duration)
-            np.save(os.path.join(args.save, 'arch_param'+str(stage_index)+'.npy'), model._arch_parameters)
-            np.save(os.path.join(args.save, 'kernel_param' + str(stage_index) + '.npy'), model._kernel_parameters)
-            np.save(os.path.join(args.save, 'mask' + str(stage_index) + '.npy'), model._masks)
-            utils.save(model, os.path.join(args.save, 'weights'+str(stage_index)+'.pt'))
-            np.save(os.path.join(args.save, 'mask_k' + str(stage_index) + '.npy'), model._masks_k)
-            np.save(os.path.join(args.save, 'mask_w' + str(stage_index) + '.npy'), model._masks_w)
-            np.save(os.path.join(args.save, 'threshold' + str(stage_index) + '.npy'), model._thresholds)
-            # torch.save(optimizer_alpha.state_dict, os.path.join(args.save, 'optimizer_alpha'+str(stage_index)+'.pt'))
-            # torch.save(optimizer_omega.state_dict, os.path.join(args.save, 'optimizer_omega' + str(stage_index) + '.pt'))
-
+            torch.save(model._arch_parameters, os.path.join(args.save, 'arch_param' + str(stage_index) + '_init.npy'))
+            torch.save(model._kernel_parameters, os.path.join(args.save, 'kernel_param' + str(stage_index) + '_init.npy'))
+            torch.save(model._masks, os.path.join(args.save, 'mask' + str(stage_index) + '_init.npy'))
+            utils.save(model, os.path.join(args.save, 'weights' + str(stage_index) + '_init.pt'))
+            torch.save(model._masks_k, os.path.join(args.save, 'mask_k' + str(stage_index) + '_init.npy'))
+            torch.save(model._masks_w, os.path.join(args.save, 'mask_w' + str(stage_index) + '_init.npy'))
+            torch.save(model._thresholds, os.path.join(args.save, 'threshold' + str(stage_index) + '_init.npy'))
 
         epoch = 0
         max_flops = args.max_flops_lambda1
@@ -723,8 +533,6 @@ def main():
             # model.prune_kernel(stage_index)
             # model.cuda()
 
-            if train_acc>best_acc:
-                best_acc = train_acc
             epoch_duration = time.time() - epoch_start
             logging.info('epoch time: %ds.', epoch_duration)
 
@@ -746,8 +554,9 @@ def main():
                     max_flops = 100
                 if can_prune:
                     if pruning_epoch >= args.pruning_n_thre1*2:
-                        flops_lambda_delta = args.lambda0
-                        flops_lambda = flops_lambda / args.c0
+                        # flops_lambda_delta = args.lambda0
+                        # flops_lambda = flops_lambda / args.c0
+                        pass
                     else:
                         if flops_lambda == max_flops:
                             pass
@@ -871,14 +680,13 @@ def main():
                 model.prune_kernel(stage_index)
                 model = model.cuda()
 
-                np.save(os.path.join(args.save, 'arch_param' + str(stage_index) + '_'+str(epoch)+ '.npy'),
-                        model._arch_parameters)
-                np.save(os.path.join(args.save, 'kernel_param' + str(stage_index) + '_'+str(epoch)+ '.npy'), model._kernel_parameters)
-                np.save(os.path.join(args.save, 'mask' + str(stage_index) + '_'+str(epoch)+ '.npy'), model._masks)
-                utils.save(model, os.path.join(args.save, 'weights' + str(stage_index) + '_'+str(epoch)+ '.pt'))
-                np.save(os.path.join(args.save, 'mask_k' + str(stage_index) + '_'+str(epoch)+ '.npy'), model._masks_k)
-                np.save(os.path.join(args.save, 'mask_w' + str(stage_index) + '_'+str(epoch)+ '.npy'), model._masks_w)
-                np.save(os.path.join(args.save, 'threshold' + str(stage_index) + '_'+str(epoch)+ '.npy'), model._thresholds)
+                torch.save(model._arch_parameters, os.path.join(args.save, 'arch_param' + str(stage_index) + '_' + str(epoch) + '.npy'))
+                torch.save(model._kernel_parameters, os.path.join(args.save, 'kernel_param' + str(stage_index) + '_' + str(epoch) + '.npy'))
+                torch.save(model._masks, os.path.join(args.save, 'mask' + str(stage_index) + '_' + str(epoch) + '.npy'))
+                utils.save(model, os.path.join(args.save, 'weights' + str(stage_index) + '_' + str(epoch) + '.pt'))
+                torch.save(model._masks_k, os.path.join(args.save, 'mask_k' + str(stage_index) + '_' + str(epoch) + '.npy'))
+                torch.save(model._masks_w, os.path.join(args.save, 'mask_w' + str(stage_index) + '_' + str(epoch) + '.npy'))
+                torch.save(model._thresholds, os.path.join(args.save, 'threshold' + str(stage_index) + '_' + str(epoch) + '.npy'))
 
                 logging.info("after: ")
                 current_flops = model.current_flops(stage_index)
@@ -1006,30 +814,23 @@ def main():
             epoch += 1
             # finished = True
             logging.info('prune op sum %d', prune_op_sum)
-            np.save(os.path.join(args.save, 'arch_param' + str(stage_index) + '.npy'),
-                    model._arch_parameters)
-            np.save(os.path.join(args.save, 'kernel_param' + str(stage_index) + '.npy'), model._kernel_parameters)
-            np.save(os.path.join(args.save, 'mask' + str(stage_index) + '.npy'), model._masks)
-            utils.save(model, os.path.join(args.save, 'weights' + str(stage_index) + '.pt'))
-            np.save(os.path.join(args.save, 'mask_k' + str(stage_index) + '.npy'), model._masks_k)
-            np.save(os.path.join(args.save, 'mask_w' + str(stage_index) + '.npy'), model._masks_w)
-            np.save(os.path.join(args.save, 'threshold' + str(stage_index) + '.npy'), model._thresholds)
-            torch.save(optimizer_alpha.state_dict,
-                       os.path.join(args.save, 'optimizer_alpha' + str(stage_index) + '.pt'))
-            torch.save(optimizer_omega.state_dict,
-                       os.path.join(args.save, 'optimizer_omega' + str(stage_index) + '.pt'))
-
+            # torch.save(model._arch_parameters, os.path.join(args.save, 'arch_param' + str(stage_index) + '_' + str(epoch) + '.npy'))
+            # torch.save(model._kernel_parameters, os.path.join(args.save, 'kernel_param' + str(stage_index) + '_' + str(epoch) + '.npy'))
+            # torch.save(model._masks, os.path.join(args.save, 'mask' + str(stage_index) + '_' + str(epoch) + '.npy'))
+            # utils.save(model, os.path.join(args.save, 'weights' + str(stage_index) + '_' + str(epoch) + '.pt'))
+            # torch.save(model._masks_k, os.path.join(args.save, 'mask_k' + str(stage_index) + '_' + str(epoch) + '.npy'))
+            # torch.save(model._masks_w, os.path.join(args.save, 'mask_w' + str(stage_index) + '_' + str(epoch) + '.npy'))
+            # torch.save(model._thresholds, os.path.join(args.save, 'threshold' + str(stage_index) + '_' + str(epoch) + '.npy'))
 
         model.prune_kernel(stage_index)
         model = model.cuda()
-        np.save(os.path.join(args.save, 'arch_param' + str(stage_index) + '.npy'),
-                model._arch_parameters)
-        np.save(os.path.join(args.save, 'kernel_param' + str(stage_index) + '.npy'), model._kernel_parameters)
-        np.save(os.path.join(args.save, 'mask' + str(stage_index) + '.npy'), model._masks)
+        torch.save(model._arch_parameters, os.path.join(args.save, 'arch_param' + str(stage_index) + '.npy'))
+        torch.save(model._kernel_parameters, os.path.join(args.save, 'kernel_param' + str(stage_index) + '.npy'))
+        torch.save(model._masks, os.path.join(args.save, 'mask' + str(stage_index) + '.npy'))
         utils.save(model, os.path.join(args.save, 'weights' + str(stage_index) + '.pt'))
-        np.save(os.path.join(args.save, 'mask_k' + str(stage_index) + '.npy'), model._masks_k)
-        np.save(os.path.join(args.save, 'mask_w' + str(stage_index) + '.npy'), model._masks_w)
-        np.save(os.path.join(args.save, 'threshold' + str(stage_index) + '.npy'), model._thresholds)
+        torch.save(model._masks_k, os.path.join(args.save, 'mask_k' + str(stage_index) + '.npy'))
+        torch.save(model._masks_w, os.path.join(args.save, 'mask_w' + str(stage_index) + '.npy'))
+        torch.save(model._thresholds, os.path.join(args.save, 'threshold' + str(stage_index) + '.npy'))
 
         if stage_index>1:
             epoch = 0
@@ -1092,15 +893,13 @@ def main():
         logging.info('train_obj_acc %e train_obj_flops %e', train_obj_acc, train_obj_flops)
         epoch_duration = time.time() - epoch_start
         logging.info('epoch time: %ds.', epoch_duration)
-        np.save(os.path.join(args.save, 'arch_param.npy'), model._arch_parameters)
-        np.save(os.path.join(args.save, 'kernel_param.npy'), model._kernel_parameters)
-        np.save(os.path.join(args.save, 'mask.npy'), model._masks)
-        utils.save(model, os.path.join(args.save, 'weights.pt'))
-        np.save(os.path.join(args.save, 'mask_k.npy'), model._masks_k)
-        np.save(os.path.join(args.save, 'mask_w.npy'), model._masks_w)
-        np.save(os.path.join(args.save, 'threshold.npy'), model._thresholds)
-        torch.save(optimizer_alpha_all.state_dict, os.path.join(args.save, 'optimizer_alpha.pt'))
-        torch.save(optimizer_omega_all.state_dict, os.path.join(args.save, 'optimizer_omega.pt'))
+        torch.save(model._arch_parameters, os.path.join(args.save, 'arch_param_init.npy'))
+        torch.save(model._kernel_parameters, os.path.join(args.save, 'kernel_param_init.npy'))
+        torch.save(model._masks, os.path.join(args.save, 'mask_init.npy'))
+        utils.save(model, os.path.join(args.save, 'weights_init.pt'))
+        torch.save(model._masks_k, os.path.join(args.save, 'mask_k_init.npy'))
+        torch.save(model._masks_w, os.path.join(args.save, 'mask_w_init.npy'))
+        torch.save(model._thresholds, os.path.join(args.save, 'threshold_init.npy'))
         epoch += 1
 
     epoch = 0
@@ -1172,13 +971,14 @@ def main():
         # if epoch % 2==0:
             model.prune_kernel()
             model = model.cuda()
-            np.save(os.path.join(args.save, 'arch_param_'+str(epoch)+'.npy'), model._arch_parameters)
-            np.save(os.path.join(args.save, 'kernel_param_'+str(epoch)+'.npy'), model._kernel_parameters)
-            np.save(os.path.join(args.save, 'mask_'+str(epoch)+'.npy'), model._masks)
-            utils.save(model, os.path.join(args.save, 'weights_'+str(epoch)+'.pt'))
-            np.save(os.path.join(args.save, 'mask_k_'+str(epoch)+'.npy'), model._masks_k)
-            np.save(os.path.join(args.save, 'mask_w_'+str(epoch)+'.npy'), model._masks_w)
-            np.save(os.path.join(args.save, 'threshold_'+str(epoch)+'.npy'), model._thresholds)
+            torch.save(model._arch_parameters, os.path.join(args.save, 'arch_param_' + str(epoch) + '.npy'))
+            torch.save(model._kernel_parameters, os.path.join(args.save, 'kernel_param_' + str(epoch) + '.npy'))
+            torch.save(model._masks, os.path.join(args.save, 'mask_' + str(epoch) + '.npy'))
+            utils.save(model, os.path.join(args.save, 'weights_' + str(epoch) + '.pt'))
+            torch.save(model._masks_k, os.path.join(args.save, 'mask_k_' + str(epoch) + '.npy'))
+            torch.save(model._masks_w, os.path.join(args.save, 'mask_w_' + str(epoch) + '.npy'))
+            torch.save(model._thresholds, os.path.join(args.save, 'threshold_' + str(epoch) + '.npy'))
+
             valid_num = 0
             total_num = 0
             for i in range(model._layers):

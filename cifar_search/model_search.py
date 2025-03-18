@@ -1486,7 +1486,7 @@ class Network(nn.Module):
 
     def genotype(self):
 
-        def _parse(weights1, weights2, all_ops, att_ops, masks):
+        def _parse(weights1, weights2, all_ops, masks):
             gene = []
 
             n = 2
@@ -1520,7 +1520,7 @@ class Network(nn.Module):
             #                         F.sigmoid(self._arch_parameters[i][1]).data.cpu().numpy(), all_ops, att_ops))
             # logging.info("layer: "+str(i))
             gene_list.append(
-                _parse(0, F.sigmoid(self._arch_parameters[i]).data.cpu().numpy(), all_ops, att_ops, self._masks[i]))
+                _parse(0, F.sigmoid(self._arch_parameters[i]).data.cpu().numpy(), all_ops, self._masks[i]))
         concat = range(2 + self._steps - self._multiplier, self._steps + 2)
         genotype = Genotype._make([gene_list, concat])
         return genotype
