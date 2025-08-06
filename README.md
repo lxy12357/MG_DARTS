@@ -1,4 +1,4 @@
-# MGAS: Multi-Granularity Architecture Search
+# MG-DARTS: Multi-Granularity Differentiable Architecture Search
 
 This repository contains the official implementation of **MG-DARTS (Multi-Granularity Differentiable Architecture Search)**, a unified differentiable neural architecture search framework to identify efficient neural networks from scratch by jointly exploring multiple levels of architectural granularity, including:
 
