@@ -23,17 +23,17 @@ To evaluate the architectures discovered by MG-DARTS, please follow the instruct
 
 CIFAR-10 (large architecture)
 ```bash
-python cifar_train/train.py --arch MG_DARTS --mask_path ../mask/mask_cifar10_darts.npy
+python cifar_train/train.py --arch MG_DARTS --mask_path ../masks/mask_cifar10_darts.npy
 ```
 
 CIFAR-10 (small architecture)
 ```bash
-python cifar_train/train.py --arch MG_DARTS_small --init_channels 24 --mask_path ../mask/mask_cifar10_darts_small.npy
+python cifar_train/train.py --arch MG_DARTS_small --init_channels 24 --mask_path ../masks/mask_cifar10_darts_small.npy
 ```
 
 CIFAR-100
 ```bash
-python cifar_train/train_cifar100.py --arch MG_DARTS --mask_path ../mask/mask_cifar10_darts.npy
+python cifar_train/train_cifar100.py --arch MG_DARTS --mask_path ../masks/mask_cifar10_darts.npy
 ```
 
 
