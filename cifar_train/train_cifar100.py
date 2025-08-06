@@ -38,7 +38,7 @@ parser.add_argument('--arch', type=str, default='MG_DARTS', help='which architec
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 parser.add_argument('--gpu', type=int, default=0, help='gpu')
 
-parser.add_argument('--mask_path', type=str, default='..masks/mask_cifar10_darts', help='mask_path')
+parser.add_argument('--mask_path', type=str, default='..masks/mask_cifar10_darts.npy', help='mask_path')
 
 args, unparsed = parser.parse_known_args()
 
@@ -76,7 +76,7 @@ def main():
 
     model = model.cuda()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model._masks_w = torch.load(args.mask_path+"/mask_w_final.npy", map_location=device)
+    model._masks_w = torch.load(args.mask_path, map_location=device)
 
     zero = 0
     for i in range(len(model._masks_w)):
